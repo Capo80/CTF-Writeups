@@ -52,25 +52,15 @@ First thing i did was patch back in the graphic component so that i can actually
 
 The first levels are just an introduction to the game, so i installed [LogKeys](https://github.com/kernc/logkeys) to record my keyboard while i solved each screen and wrote a small python script to encode the moves in the game format, here is the solutions of the first 5 levels:
 
+https://github.com/Capo80/CTF-Writeups/assets/43845637/0801a238-cf47-467c-a868-0b3232f425c4
 
-https://github.com/Capo80/CTF-Writeups/blob/main/gpn_2023/parabox/videos/level_0.mp4
+https://github.com/Capo80/CTF-Writeups/assets/43845637/da73a313-3f1d-48f8-b617-882e81713138
 
+https://github.com/Capo80/CTF-Writeups/assets/43845637/46d6fbe3-7325-48d8-ae42-c0d556e5c8c8
 
-<video width="320" height="240" controls>
-  <source src="videos/level_0.mp4" type="video/mp4">
-</video>
-<video width="320" height="240" controls>
-  <source src="videos/level_1.mp4" type="video/mp4">
-</video>
-<video width="320" height="240" controls>
-  <source src="videos/level_2.mp4" type="video/mp4">
-</video>
-<video width="320" height="240" controls>
-  <source src="videos/level_3.mp4" type="video/mp4">
-</video>
-<video width="320" height="240" controls>
-  <source src="videos/level_4.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/f60e3e60-fbbd-45c7-8cea-0b49a76af757
+
+https://github.com/Capo80/CTF-Writeups/assets/43845637/616219d2-f3ec-428e-a80f-6abc660494d6
 
 The objective of the game is to get our character in the finish square and to put a box in all the designed spots, the twist here is the presence of "paraboxes" which are boxes that we both move and enter inside, as shown in level 4.
 
@@ -86,9 +76,7 @@ Let's note down some of the area in memory to look up later, i was able to find:
 - the history of played moves at ```0xc200```, green box;
 - the position of the winning square at ```0xc271```, yellow box;
 
-<video width="600" height="600" controls>
-  <source src="videos/memory.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/5a945617-4753-4c89-bb62-d53894da5061
 
 Any pwn expert reading this has already snuffed out where a vulnerability might be, i am not very good at pwning so it took me a bit of time but the interesting part here is that we have and array that grows, the move history, which is very near our victory square position, if the boundary of this array is not enforced correctly we may be able to overwrite the position of the finish. 
 
@@ -100,9 +88,7 @@ Indeed, this is a vulnerability as the limit of the move history is one byte too
 
 Now all we need to do to beat the impossible level is make a bunch of random moves to fill up the history array until the end, then make a move which corresponds to a square we can reach, which is only LEFT, then go to that square and finish the level. Using left as our overflow move we end up with the finish in the bottom left, here's my version of the solution:
 
-<video width="320" height="240" controls>
-  <source src="videos/level_5.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/228ae5b3-c262-4b4d-871c-4a162fb46926
 
 After beating this we reach level "small" which is a normal level, then we reach "Missing" and even after putting all the boxes in the correct place the level wont let me advance, clearly there some shenanigans happening here and it's actually time to start reversing to find out what is going on.
 
@@ -140,9 +126,9 @@ u8 check_victory() {
 There are multiple conditions starting at ```0xc279``` that we need to beat a level, the first is always to have the player on the finish square, then we can have an arbitrary number of other conditions which check the correct position of the boxes. Each condition is associated with a map, a level can have up to three maps, the first is where the players spawns, the other two are the green and blue "paraboxes", shown below for the level "small":
 
 
-<img src="images/small_1.jpeg" alt="drawing" width="300"/>
-<img src="images/small_2.jpeg" alt="drawing" width="300"/>
-<img src="images/small_3.jpeg" alt="drawing" width="300"/>
+<img src="images/small_1.jpeg" alt="drawing" width="250"/>
+<img src="images/small_2.jpeg" alt="drawing" width="250"/>
+<img src="images/small_3.jpeg" alt="drawing" width="250"/>
 
 Now let's have a look at the victory conditions for the "Missing" level:
 ```c
@@ -166,9 +152,7 @@ The game offers an UNDO button for when you make a mistake during the puzzle, th
 
 However, the implementation of the feature is peculiar, instead inverting the logic of a single move to rewind, it restores all the maps of the level to a past state, then it re-plays all the moves in the history except for the last one, it is not shown on screen but we can clearly see it from the memory if we slowdown the video a bit:
 
-<video width="600" height="300" controls>
-  <source src="videos/undo.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/7b6219bf-fa40-448b-bec9-5898f0fe8406
 
 Again by setting some breakpoints i find the piece of code responsible for handling the UNDO which is at ```0x02e5``` and by looking at function that restores the state of the level, at ```0x0706```. I found nothing amiss in that so i looked to the state is saved, at ```0x06c3```, and hare i found a discrepancy, when the maps are saved, it will check how many maps are actually set on the level to copy only those, but when it does the restore it will copy all of them. This is a vulnerability, if we have a level with less maps than its predecessor we can copy the contents of a map from one level to another. 
 
@@ -180,9 +164,7 @@ So now we have all the pieces, we go in and out of the green box in "Small" to s
 
 BEWARE! FLASHING IMAGES!
 
-<video width="320" height="240" controls>
-  <source src="videos/level_6_7.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/810f8ec6-612f-4368-b2a3-d7113127e8d1
 
 I skipped some details for the sake of clarity, but the game actually saves 4 states to restore instead of only 1, it does so every 32 moves probably because it would take too much time to re-play the full length of the move history array, so at the start of "Missing" i have to waste some moves to re-align myself with the correct saved state.
 
@@ -194,9 +176,9 @@ So i reached this point, the "Last Hurdle", at 4AM in the morning, i started thi
 
 I really wanted to finish this challenge to get the first blood before going to bed, but i had to hope for an easy last level or i would not make it. This is what is saw:
 
-<img src="images/last_1.jpeg" alt="drawing" width="300"/>
-<img src="images/last_2.jpeg" alt="drawing" width="300"/>
-<img src="images/last_3.jpeg" alt="drawing" width="300"/>
+<img src="images/last_1.jpeg" alt="drawing" width="250"/>
+<img src="images/last_2.jpeg" alt="drawing" width="250"/>
+<img src="images/last_3.jpeg" alt="drawing" width="250"/>
 
 There is no hidden condition here so you just need to get the box at the center of the green parabox and you win, unfortunately there is no way for the player to enter the green parabox, i edited the game memory removing a wall to see it the first time, so you can never push the box down to its position.
 
@@ -204,9 +186,7 @@ My idea here was to somehow duplicate the boxes and push both inside the green p
 
 The bottom and right side of the blue parabox are facing a wall so i should able to push anything in, i followed the box and, surprisingly, i found myself inside the green parabox. By sheer luck, in only around 20 minutes of playing around, i found the glitch, the left corner of the blue parabox is connected to the green parabox, with this information the solution to the level is trivial, here it is:
 
-<video width="320" height="240" controls>
-  <source src="videos/level_8.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/5fba463a-1466-4518-9242-69441b6cdef1
 
 ## Conclusions
 
@@ -225,9 +205,7 @@ This thing got pretty long and i could not even include my fuzzing experiments w
 
 BEWARE! FLASHING IMAGES!
 
-<video width="320" height="240" controls>
-  <source src="videos/full_solve.mp4" type="video/mp4">
-</video>
+https://github.com/Capo80/CTF-Writeups/assets/43845637/b37a4371-8d0b-4080-81b1-cce2342e5284
 
 ## Tools used
 
