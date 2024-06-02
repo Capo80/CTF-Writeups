@@ -52,6 +52,10 @@ First thing i did was patch back in the graphic component so that i can actually
 
 The first levels are just an introduction to the game, so i installed [LogKeys](https://github.com/kernc/logkeys) to record my keyboard while i solved each screen and wrote a small python script to encode the moves in the game format, here is the solutions of the first 5 levels:
 
+
+https://github.com/Capo80/CTF-Writeups/blob/main/gpn_2023/parabox/videos/level_0.mp4
+
+
 <video width="320" height="240" controls>
   <source src="videos/level_0.mp4" type="video/mp4">
 </video>
