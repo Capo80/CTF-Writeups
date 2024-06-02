@@ -1,0 +1,322 @@
+diff --git a/platforms/audio-shared/Sound_Queue.cpp b/platforms/audio-shared/Sound_Queue.cpp
+index 1aaf927..60c369d 100644
+--- a/platforms/audio-shared/Sound_Queue.cpp
++++ b/platforms/audio-shared/Sound_Queue.cpp
+@@ -144,9 +144,9 @@ void Sound_Queue::write( const sample_t* in, int count, bool sync )
+ 		{
+ 			write_pos = 0;
+ 			write_buf = (write_buf + 1) % buf_count;
+-			
+-			if (sync_output)
+-				SDL_SemWait( free_sem );
++
++			// if (sync_output)
++			// 	 SDL_SemWait( free_sem );
+ 		}
+ 	}
+ }
+diff --git a/platforms/desktop-shared/application.cpp b/platforms/desktop-shared/application.cpp
+index 8e06957..081b804 100644
+--- a/platforms/desktop-shared/application.cpp
++++ b/platforms/desktop-shared/application.cpp
+@@ -35,6 +35,7 @@ static bool running = true;
+ static bool paused_when_focus_lost = false;
+ static Uint64 frame_time_start;
+ static Uint64 frame_time_end;
++static const char* input;
+ 
+ static int sdl_init(void);
+ static void sdl_destroy(void);
+@@ -47,14 +48,14 @@ static void render(void);
+ static void frame_throttle(void);
+ static void save_window_size(void);
+ 
+-int application_init(const char* rom_file, const char* symbol_file)
++int application_init(const char* rom_file, const char* in)
+ {
+     Log ("<·> %s %s Desktop App <·>", GEARBOY_TITLE, GEARBOY_VERSION);
+ 
+     config_init();
+     config_read();
+ 
+-    int ret = sdl_init();
++    // int ret = sdl_init();
+     emu_init();
+ 
+     strcpy(emu_savefiles_path, config_emulator.savefiles_path.c_str());
+@@ -62,11 +63,11 @@ int application_init(const char* rom_file, const char* symbol_file)
+     emu_savefiles_dir_option = config_emulator.savefiles_dir_option;
+     emu_savestates_dir_option = config_emulator.savestates_dir_option;
+ 
+-    gui_init();
++    // gui_init();
+ 
+-    ImGui_ImplSDL2_InitForOpenGL(sdl_window, gl_context);
++    // ImGui_ImplSDL2_InitForOpenGL(sdl_window, gl_context);
+ 
+-    renderer_init();
++    // renderer_init();
+ 
+     SDL_GL_SetSwapInterval(config_video.sync ? 1 : 0);
+ 
+@@ -75,38 +76,79 @@ int application_init(const char* rom_file, const char* symbol_file)
+         Log ("Rom file argument: %s", rom_file);
+         gui_load_rom(rom_file);
+     }
+-    if (IsValidPointer(symbol_file) && (strlen(symbol_file) > 0))
+-    {
+-        Log ("Symbol file argument: %s", symbol_file);
+-        gui_debug_reset_symbols();
+-        gui_debug_load_symbols_file(symbol_file);
+-    }
++    // if (IsValidPointer(symbol_file) && (strlen(symbol_file) > 0))
++    // {
++    //     Log ("Symbol file argument: %s", symbol_file);
++    //     gui_debug_reset_symbols();
++    //     gui_debug_load_symbols_file(symbol_file);
++    // }
++    input = in;
++
++    return 0x00;
++}
+ 
+-    return ret;
++void check_win(void) {
++    GearboyCore* core = emu_get_core();
++    Memory* memory = core->GetMemory();
++    u8 did_win = memory->Read(0xd000);
++    if (did_win) {
++        std::ifstream f("flag.txt");
++        if (f.is_open()) {
++            std::cout << "You solved the challenge, here is your flag: " << std::endl;
++            std::cout << f.rdbuf();
++        } else {
++            std::cout << "You solved the challenge, but something went wrong. " << std::endl;
++            std::cout << "If this happens repeatedly, please contact an admin." << std::endl;
++        }
++    } else {
++        std::cout << "No win. Try again..." << std::endl;
++    }
+ }
+ 
+ void application_destroy(void)
+ {
+-    save_window_size();
++    check_win();
++
++    // save_window_size();
+     config_write();
+     config_destroy();
+-    renderer_destroy();
+-    gui_destroy();
++    // renderer_destroy();
++    // gui_destroy();
+     emu_destroy();
+-    sdl_destroy();
++    // sdl_destroy();
+ }
+ 
+ void application_mainloop(void)
+ {
++    const char* current = input;
++    int i = 2;
++    Gameboy_Keys key;
+     while (running)
+     {
+         frame_time_start = SDL_GetPerformanceCounter();
+-        sdl_events();
+-        handle_mouse_cursor();
++        // sdl_events();
++        if (i % 10 == 0) {
++            switch (*current++) {
++                case 'A': key = A_Key; break;
++                case 'B': key = B_Key; break;
++                case 'U': key = Up_Key; break;
++                case 'D': key = Down_Key; break;
++                case 'L': key = Left_Key; break;
++                case 'R': key = Right_Key; break;
++                case 'S': key = Select_Key; break;
++                case 'T': key = Start_Key; break;
++                case 0: return;
++            }
++            emu_key_pressed(key);
++        } else if (i % 10 == 1) {
++            emu_key_released(key);
++        }
++        // handle_mouse_cursor();
+         run_emulator();
+-        render();
++        // render();
+         frame_time_end = SDL_GetPerformanceCounter();
+-        frame_throttle();
++        // frame_throttle();
++        i++;
+     }
+ }
+ 
+@@ -188,7 +230,7 @@ static int sdl_init(void)
+     int display_w, display_h;
+     SDL_GetWindowSize(sdl_window, &w, &h);
+     SDL_GL_GetDrawableSize(sdl_window, &display_w, &display_h);
+-    
++
+     if (w > 0 && h > 0)
+     {
+         float scale_w = (float)display_w / w;
+@@ -214,7 +256,7 @@ static void sdl_destroy(void)
+ static void sdl_events(void)
+ {
+     SDL_Event event;
+-        
++
+     while (SDL_PollEvent(&event))
+     {
+         if (event.type == SDL_QUIT)
+@@ -269,7 +311,7 @@ static void sdl_events_emu(const SDL_Event* event)
+         {
+             if (!config_input.gamepad)
+                 break;
+-            
++
+             if (event->cbutton.button == config_input.gamepad_b)
+                 emu_key_pressed(B_Key);
+             else if (event->cbutton.button == config_input.gamepad_a)
+@@ -278,10 +320,10 @@ static void sdl_events_emu(const SDL_Event* event)
+                 emu_key_pressed(Select_Key);
+             else if (event->cbutton.button == config_input.gamepad_start)
+                 emu_key_pressed(Start_Key);
+-            
++
+             if (config_input.gamepad_directional == 1)
+                 break;
+-            
++
+             if (event->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP)
+                 emu_key_pressed(Up_Key);
+             else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+@@ -306,10 +348,10 @@ static void sdl_events_emu(const SDL_Event* event)
+                 emu_key_released(Select_Key);
+             else if (event->cbutton.button == config_input.gamepad_start)
+                 emu_key_released(Start_Key);
+-            
++
+             if (config_input.gamepad_directional == 1)
+                 break;
+-            
++
+             if (event->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP)
+                 emu_key_released(Up_Key);
+             else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+@@ -325,12 +367,12 @@ static void sdl_events_emu(const SDL_Event* event)
+         {
+             if (!config_input.gamepad)
+                 break;
+-            
++
+             if (config_input.gamepad_directional == 0)
+                 break;
+ 
+             const int STICK_DEAD_ZONE = 8000;
+-                
++
+             if(event->caxis.axis == config_input.gamepad_x_axis)
+             {
+                 int x_motion = event->caxis.value * (config_input.gamepad_invert_x_axis ? -1 : 1);
+@@ -348,7 +390,7 @@ static void sdl_events_emu(const SDL_Event* event)
+             else if(event->caxis.axis == config_input.gamepad_y_axis)
+             {
+                 int y_motion = event->caxis.value * (config_input.gamepad_invert_y_axis ? -1 : 1);
+-                
++
+                 if (y_motion < -STICK_DEAD_ZONE)
+                     emu_key_pressed(Up_Key);
+                 else if (y_motion > STICK_DEAD_ZONE)
+@@ -431,7 +473,7 @@ static void sdl_shortcuts_gui(const SDL_Event* event)
+     if ((event->type == SDL_KEYDOWN) && (event->key.keysym.mod & KMOD_CTRL))
+     {
+         int key = event->key.keysym.scancode;
+-        
++
+         switch (key)
+         {
+             case SDL_SCANCODE_O:
+@@ -520,7 +562,7 @@ static void run_emulator(void)
+ static void render(void)
+ {
+     renderer_begin_render();
+-    ImGui_ImplSDL2_NewFrame(sdl_window);  
++    ImGui_ImplSDL2_NewFrame(sdl_window);
+     gui_render();
+     renderer_render();
+     renderer_end_render();
+diff --git a/platforms/desktop-shared/application.h b/platforms/desktop-shared/application.h
+index cb7c847..40dda19 100644
+--- a/platforms/desktop-shared/application.h
++++ b/platforms/desktop-shared/application.h
+@@ -34,7 +34,7 @@ EXTERN float application_display_scale;
+ EXTERN SDL_version application_sdl_build_version;
+ EXTERN SDL_version application_sdl_link_version;
+ 
+-EXTERN int application_init(const char* rom_file, const char* symbol_file);
++EXTERN int application_init(const char* rom_file, const char* in);
+ EXTERN void application_destroy(void);
+ EXTERN void application_mainloop(void);
+ EXTERN void application_trigger_quit(void);
+diff --git a/platforms/desktop-shared/main.cpp b/platforms/desktop-shared/main.cpp
+index 6271ee7..df4a84a 100644
+--- a/platforms/desktop-shared/main.cpp
++++ b/platforms/desktop-shared/main.cpp
+@@ -23,7 +23,7 @@
+ int main(int argc, char* argv[])
+ {
+     char* rom_file = NULL;
+-    char* symbol_file = NULL;
++    char* inputs = NULL;
+     bool show_usage = false;
+     int ret = 0;
+ 
+@@ -48,35 +48,26 @@ int main(int argc, char* argv[])
+         }
+     }
+ 
+-    switch (argc)
+-    {
+-        case 3:
+-            rom_file = argv[1];
+-            symbol_file = argv[2];
+-            break;
+-        case 2:
+-            rom_file = argv[1];
+-            break;
+-        case 1:
+-            break;
+-        default:
+-            show_usage = true;
+-            ret = -1;
+-            break;
++    if (argc != 3) {
++        show_usage = true;
++        ret = -1;
++    } else {
++        rom_file = argv[1];
++        inputs = argv[2];
+     }
+ 
+     if (show_usage)
+     {
+-        printf("Usage: %s [rom_file] [symbol_file]\n", argv[0]);
++        printf("Usage: %s [rom_file] [key_inputs]\n", argv[0]);
+         return ret;
+     }
+ 
+-    ret = application_init(rom_file, symbol_file);
++    ret = application_init(rom_file, inputs);
+ 
+     if (ret == 0)
+         application_mainloop();
+ 
+-    application_destroy();    
++    application_destroy();
+ 
+     return ret;
+ }
