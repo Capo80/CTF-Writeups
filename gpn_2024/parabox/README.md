@@ -27,11 +27,11 @@ Reverse, Hard
 
 ### TLDR
 
-Challenge is a Game Boy Color ROM containing a version of the Parabox game, objective is to win the game on the server by sending the correct moves. There are a total of 8 level and some are impossible trough normal playing, but with some reversing i was able to find 3 vulnerabilities that can be used to beat the game.
+Challenge is a Game Boy Color ROM containing a version of the Parabox game, objective is to win the game on the server by sending the correct moves. The objecctive of the game is to position some boxes and the player in the corrrect positions, for each level we can traverse 3 maps, the main screen plus 2 paraboxes which we can enter, one blue, one green. There are a total of 8 levels and some are impossible trough normal playing, but with some reversing i was able to find 3 vulnerabilities that can be used to beat the game.
 
 The 3 vulns are:
-- The game saves a list of moves from the players which overwrite the position of the victory square, can be used to beat the "Impossible" level which has an unreachable finish;
-- To implemented the undo feature the game periodically saves a copy of the map, if a level has less areas of its predecessor when we undo we will copy in an additional area from it, this can be used on the "Missing" level which has impossible constraints;
+- The game saves a list of moves, we can overflow this list by 1 simply by playing the game and overwrite the position of the victory square which is saved immediatly after, can be used to beat the "Impossible" level which has an unreachable finish;
+- To implemented the undo feature the game periodically saves a copy of each map, when redo is pressed the copy is restored and the moves are replyed, if a level has less maps of its predecessor when we undo we will copy in an additional map from it overwriting some memory, this can be used on the "Missing" level which has impossible constraints;
 - In the "Last Hurdle" boxes have a connection where they should not;
 
 An overall interesting challenge which included both reversing and some very easy pwning.
@@ -78,7 +78,7 @@ Let's note down some of the area in memory to look up later, i was able to find:
 
 https://github.com/Capo80/CTF-Writeups/assets/43845637/5a945617-4753-4c89-bb62-d53894da5061
 
-Any pwn expert reading this has already snuffed out where a vulnerability might be, i am not very good at pwning so it took me a bit of time but the interesting part here is that we have and array that grows, the move history, which is very near our victory square position, if the boundary of this array is not enforced correctly we may be able to overwrite the position of the finish. 
+Any pwn expert reading this has already snuffed out where a vulnerability might be, i am not very good at pwning so it took me a bit of time but the interesting part here is that we have an array that grows, the move history, which is very near our victory square position, if the boundary of this array is not enforced correctly we may be able to overwrite the position of the finish. 
 
 Indeed, this is a vulnerability as the limit of the move history is one byte too much, allowing us to overwrite the position with the value assigned to our move. Again from the move history we find out that the values are:
 - ```0x10``` for RIGHT;
@@ -154,11 +154,9 @@ However, the implementation of the feature is peculiar, instead inverting the lo
 
 https://github.com/Capo80/CTF-Writeups/assets/43845637/7b6219bf-fa40-448b-bec9-5898f0fe8406
 
-Again by setting some breakpoints i find the piece of code responsible for handling the UNDO which is at ```0x02e5``` and by looking at function that restores the state of the level, at ```0x0706```. I found nothing amiss in that so i looked to the state is saved, at ```0x06c3```, and hare i found a discrepancy, when the maps are saved, it will check how many maps are actually set on the level to copy only those, but when it does the restore it will copy all of them. This is a vulnerability, if we have a level with less maps than its predecessor we can copy the contents of a map from one level to another. 
+Now after a bit of reversing and some breakpoints i was able to find the functions that save and restore the level, which are at ```0x06c3``` and ```0x0706``` respectively. Here we can find the vulnerability, when a level is saved, only the maps active in the level are copied to the buffer, but when a level is restored, all 3 maps are replaced with the contents of the buffer, even if the current level does not utilize all the maps. Now, if we remember the victory conditions for the "Missing" level, we needed a 2 objects in map 3 which is not present in the level, luckily for us, the level before, "Small", has a green parabox, which corresponds to map 3. What we need to do a bunch of moves in the level "Small" to make the make the game save its state, then in the level "Missing" we undo to copy "Small" third map into "Missing".
 
-Now, if we remember the victory conditions for the "Missing" level, we needed a 2 objects in map 3 which is not present in the level, luckily for us, the level before has a green parabox, so we can copy its contents inside "Missing".
-
-Unfortunately, we have only one box in the level "Small" so we cannot fill both spots inside the green box. However, after a bit of testing, it turns out that the id representing the player on the map changes at every level depending on the number of boxes and the value assigned to us by the level "Small" actually fulfils the requirements for a box in the level "Missing".
+Now, the only thing left to do is setup the state of the green parabox in "Small" so that it satisfies the win conditions of "Missing" before saving the state, this means we need to fill up both spots in the parabox, unfortunately, this is impossible as the level has only one box we can use. However, after a bit of testing, it turns out that the id representing the player on the map changes at every level depending on the number of boxes and the value assigned to us by the level "Small" actually fulfils the requirements for a box in the level "Missing".
 
 So now we have all the pieces, we go in and out of the green box in "Small" to setup a saved state for map 3, then in "Missing" we press UNDO at the start to get the last winning conditions, then complete the level as normal. Here is my solution:
 
@@ -184,7 +182,7 @@ There is no hidden condition here so you just need to get the box at the center 
 
 My idea here was to somehow duplicate the boxes and push both inside the green parabox so that one would go in the correct square and, in a wonderful moment of luck, i pushed to box down in the bottom left corner of the blue parabox.
 
-The bottom and right side of the blue parabox are facing a wall so i should able to push anything in, i followed the box and, surprisingly, i found myself inside the green parabox. By sheer luck, in only around 20 minutes of playing around, i found the glitch, the left corner of the blue parabox is connected to the green parabox, with this information the solution to the level is trivial, here it is:
+The bottom and right side of the blue parabox are facing a wall so i should not able to push anything in, i followed the box and, surprisingly, i found myself inside the green parabox. By sheer luck, in only around 20 minutes of playing around, i found the glitch, the left corner of the blue parabox is connected to the green parabox, with this information the solution to the level is trivial, here it is:
 
 https://github.com/Capo80/CTF-Writeups/assets/43845637/5fba463a-1466-4518-9242-69441b6cdef1
 
